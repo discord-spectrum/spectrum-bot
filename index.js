@@ -1988,6 +1988,8 @@ client.on(
         // 버튼 역할판 생성
         // ====================
 
+        const { MessageFlags } = require('discord.js');
+        
         if (
             message.content === '.역할판' ||
             message.content.startsWith('.역할판 ')
