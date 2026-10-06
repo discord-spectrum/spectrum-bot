@@ -66,8 +66,29 @@ const LEAVE_LOG_CHANNEL_ID =
 // 경고 차감 로그 채널
 // ====================
 
-const WARNING_DEDUCTION_LOG_CHANNEL_ID =
+const WARNING_LOG_CHANNEL_ID =
     '1556148017873166356';
+
+// ====================
+// 경고 지급 로그 채널
+// ====================
+
+const WARNING_ISSUE_LOG_CHANNEL_ID =
+    '1556147970297045043';
+
+// ====================
+// 추방 로그 채널
+// ====================
+
+const KICK_LOG_CHANNEL_ID =
+    '1556147970297045043';
+
+// ====================
+// 티켓 로그 채널
+// ====================
+
+const TICKET_LOG_CHANNEL_ID =
+    '1556147255327723623';
 
 // ====================
 // 청소 로그 채널
@@ -168,12 +189,6 @@ function canCloseTicket(member) {
     ]);
 }
 
-function canSetLog(member) {
-    return hasRole(member, [
-        ROLE_IDS.owner
-    ]);
-}
-
 function canCreateTicketPanel(member) {
     return hasRole(member, [
         ROLE_IDS.owner
@@ -240,75 +255,26 @@ function saveWarnings() {
 }
 
 // ====================
-// 로그 설정
-// ====================
-
-const logFile =
-    path.join(
-        __dirname,
-        'logChannel.json'
-    );
-
-let logChannelId = null;
-
-if (fs.existsSync(logFile)) {
-    try {
-        const data =
-            JSON.parse(
-                fs.readFileSync(
-                    logFile,
-                    'utf8'
-                )
-            );
-
-        logChannelId =
-            data.channelId ||
-            null;
-
-        console.log(
-            '로그 채널 설정을 불러왔습니다.'
-        );
-
-    } catch (error) {
-        console.error(
-            '로그 설정을 불러오는 중 오류가 발생했습니다:',
-            error
-        );
-    }
-}
-
-function saveLogChannel() {
-    fs.writeFileSync(
-        logFile,
-        JSON.stringify(
-            {
-                channelId:
-                    logChannelId
-            },
-            null,
-            2
-        ),
-        'utf8'
-    );
-}
-
-// ====================
 // 관리 로그 보내기
 // ====================
 
 async function sendLog(
     guild,
+    channelId,
     title,
     description
 ) {
-    if (!logChannelId) return;
-
     const channel =
         guild.channels.cache.get(
-            logChannelId
+            channelId
         );
 
-    if (!channel) return;
+    if (!channel) {
+        console.error(
+            `[관리 로그 오류] 채널을 찾을 수 없습니다: ${channelId}`
+        );
+        return;
+    }
 
     const embed =
         new EmbedBuilder()
@@ -736,34 +702,7 @@ client.on(
                 '🎮 `.게임역할` — 게임 역할 선택판 생성\n' +
                 '🎫 `.티켓` — 티켓 안내판 생성 (소유주 전용)\n' +
                 '🔒 `.티켓닫기` — 신고 채널 닫기\n' +
-                '📝 `.로그설정` — 현재 채널을 관리 로그 채널로 설정\n' +
                 '📢 `.관리자멘션` — 관리자 전체 멘션 (소유주 전용)'
-            );
-
-            return;
-        }
-
-        // ====================
-        // 로그 설정
-        // ====================
-
-        if (message.content === '.로그설정') {
-
-            if (!canSetLog(message.member)) {
-
-                return message.reply(
-                    '❌ 이 명령어를 사용할 권한이 없습니다.'
-                );
-            }
-
-            logChannelId =
-                message.channel.id;
-
-            saveLogChannel();
-
-            await message.reply(
-                `📝 **관리 로그 채널이 설정되었습니다.**\n\n` +
-                `📌 로그 채널: ${message.channel}`
             );
 
             return;
@@ -1073,6 +1012,7 @@ client.on(
 
             await sendLog(
                 message.guild,
+                WARNING_ISSUE_LOG_CHANNEL_ID,
                 '경고 부여',
                 `👤 대상: ${member}\n` +
                 `🛡️ 관리자: ${message.author}\n` +
@@ -1257,7 +1197,7 @@ client.on(
 
             const warningDeductionLogChannel =
                 message.guild.channels.cache.get(
-                    WARNING_DEDUCTION_LOG_CHANNEL_ID
+                    WARNING_LOG_CHANNEL_ID
                 );
 
             if (warningDeductionLogChannel) {
@@ -1360,6 +1300,7 @@ client.on(
 
             await sendLog(
                 message.guild,
+                KICK_LOG_CHANNEL_ID,
                 '멤버 추방',
                 `👤 대상: **${targetTag}**\n` +
                 `🛡️ 관리자: ${message.author}\n` +
@@ -1543,19 +1484,6 @@ client.on(
                 }).catch(() => {});
             }
 
-            // ====================
-            // 관리 로그
-            // ====================
-
-            await sendLog(
-                message.guild,
-                '멤버 영구차단',
-                `👤 대상: **${targetTag}**\n` +
-                `🆔 사용자 ID: \`${member.id}\`\n` +
-                `🛡️ 관리자: ${message.author}\n` +
-                `📌 사유: ${reason}`
-            );
-
             await message.reply(
                 `🔨 **멤버를 영구 차단했습니다.**\n\n` +
                 `👤 대상: ${targetTag}\n` +
@@ -1703,19 +1631,6 @@ client.on(
                     embeds: [embed]
                 }).catch(() => {});
             }
-
-            // ====================
-            // 관리 로그
-            // ====================
-
-            await sendLog(
-                message.guild,
-                '멤버 영구차단 해제',
-                `👤 대상: **${targetTag}**\n` +
-                `🆔 사용자 ID: \`${userId}\`\n` +
-                `🛡️ 관리자: ${message.author}\n` +
-                `📌 해제 사유: ${reason}`
-            );
 
             await message.reply(
                 `🔓 **영구차단을 해제했습니다.**\n\n` +
@@ -2078,6 +1993,7 @@ client.on(
 
             await sendLog(
                 message.guild,
+                TICKET_LOG_CHANNEL_ID,
                 '신고 채널 삭제',
                 `🛡️ 관리자: ${message.author}\n` +
                 `📌 채널: ${channel.name}`
@@ -2462,6 +2378,7 @@ client.on(
 
             await sendLog(
                 guild,
+                TICKET_LOG_CHANNEL_ID,
                 '신고 채널 생성',
                 `👤 신고자: ${interaction.user}\n` +
                 `📌 채널: ${channel}`
