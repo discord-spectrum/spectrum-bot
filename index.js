@@ -66,7 +66,7 @@ const LEAVE_LOG_CHANNEL_ID =
 // 경고 차감 로그 채널
 // ====================
 
-const WARNING_DEDUCTION_LOG_CHANNEL_ID =
+const WARNING_LOG_CHANNEL_ID =
     '1556148017873166356';
 
 // ====================
@@ -1257,7 +1257,7 @@ client.on(
 
             const warningDeductionLogChannel =
                 message.guild.channels.cache.get(
-                    WARNING_DEDUCTION_LOG_CHANNEL_ID
+                    WARNING_LOG_CHANNEL_ID
                 );
 
             if (warningDeductionLogChannel) {
