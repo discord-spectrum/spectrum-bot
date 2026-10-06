@@ -290,8 +290,16 @@ if (fs.existsSync(reactionRolePanelsFile)) {
         ) {
             if (
                 typeof panel.guildId === 'string' &&
-                panel.roleByEmoji &&
-                typeof panel.roleByEmoji === 'object'
+                (
+                    (
+                        panel.roleByEmoji &&
+                        typeof panel.roleByEmoji === 'object'
+                    ) ||
+                    (
+                        panel.roleByButton &&
+                        typeof panel.roleByButton === 'object'
+                    )
+                )
             ) {
                 reactionRolePanels.set(
                     messageId,
@@ -779,9 +787,9 @@ client.on(
                 '🏠 `.서버정보` — 서버 정보 확인\n' +
                 '👤 `.유저정보 @멤버` — 멤버 정보 확인\n' +
                 '🎮 `.게임역할` — 게임 역할 선택판 생성\n' +
-                '🎭 `.역할판 😀 @역할1 🎮 @역할2` — 반응 역할판 생성 (소유주 전용)\n' +
+                '🎭 `.역할판 "버튼 문구" @역할 "버튼 문구2" @역할2` — 버튼 역할판 생성 (소유주 전용)\n' +
                 '🎫 `.티켓` — 티켓 안내판 생성 (소유주 전용)\n' +
-                '🔒 `.티켓닫기` — 신고 채널 닫기\n' +
+                '🔒 `.티켓닫기` — 신고 채널 닫기\n' +   
                 '📢 `.관리자멘션` — 관리자 전체 멘션 (소유주 전용)'
             );
 
@@ -1976,7 +1984,7 @@ client.on(
         }
 
         // ====================
-        // 반응 역할판 생성
+        // 버튼 역할판 생성
         // ====================
 
         if (
@@ -1991,83 +1999,64 @@ client.on(
                 );
             }
 
-            const args =
+            const specification =
                 message.content
-                    .trim()
-                    .split(/\s+/)
-                    .slice(1);
+                    .slice('.역할판'.length)
+                    .trim();
 
-            if (
-                args.length < 2 ||
-                args.length % 2 !== 0 ||
-                args.length > 40
-            ) {
-
-                return message.reply(
-                    '🎭 반응 이모지와 역할 멘션을 짝으로 입력해주세요.\n' +
-                    '예시: `.역할판 😀 @역할1 🎮 @역할2`\n' +
-                    '한 판에는 최대 20개 역할까지 설정할 수 있습니다.'
-                );
-            }
+            const entryPattern =
+                /\s*"([^"\r\n]{1,80})"\s*(<@&\d+>)/gy;
 
             const roleEntries = [];
-            const usedEmojiKeys = new Set();
             const usedRoleIds = new Set();
+            let offset = 0;
+            let invalidFormat = false;
 
-            for (
-                let index = 0;
-                index < args.length;
-                index += 2
-            ) {
-                const emoji =
-                    args[index];
+            while (offset < specification.length) {
+                entryPattern.lastIndex =
+                    offset;
 
-                const roleMention =
-                    args[index + 1].match(
+                const match =
+                    entryPattern.exec(
+                        specification
+                    );
+
+                if (!match) {
+                    invalidFormat = true;
+                    break;
+                }
+
+                const label =
+                    match[1].trim();
+
+                const roleId =
+                    match[2].match(
                         /^<@&(\d+)>$/
+                    )[1];
+
+                const role =
+                    message.guild.roles.cache.get(
+                        roleId
                     );
 
-                if (!roleMention) {
+                if (!label) {
 
                     return message.reply(
-                        `❌ ${args[index + 1]}은(는) 역할 멘션이 아닙니다.\n` +
-                        '각 이모지 뒤에 역할을 멘션해주세요.'
+                        '❌ 버튼 문구는 비워둘 수 없습니다.'
                     );
                 }
 
-                const customEmoji =
-                    emoji.match(
-                        /^<a?:[A-Za-z0-9_]+:(\d+)>$/
-                    );
-
-                const emojiKey =
-                    customEmoji
-                        ? customEmoji[1]
-                        : emoji;
-
-                if (usedEmojiKeys.has(emojiKey)) {
-
-                    return message.reply(
-                        `❌ ${emoji} 이모지가 중복되었습니다.`
-                    );
-                }
-
-                if (usedRoleIds.has(roleMention[1])) {
+                if (usedRoleIds.has(roleId)) {
 
                     return message.reply(
                         '❌ 하나의 역할은 한 번만 등록할 수 있습니다.'
                     );
                 }
 
-                const role =
-                    message.guild.roles.cache.get(
-                        roleMention[1]
-                    );
-
                 if (!role) {
 
                     return message.reply(
-                        `❌ ${args[index + 1]} 역할을 찾을 수 없습니다.`
+                        `❌ <@&${roleId}> 역할을 찾을 수 없습니다.`
                     );
                 }
 
@@ -2079,19 +2068,30 @@ client.on(
                     );
                 }
 
-                usedEmojiKeys.add(
-                    emojiKey
-                );
-
                 usedRoleIds.add(
-                    role.id
+                    roleId
                 );
 
                 roleEntries.push({
-                    emoji,
-                    emojiKey,
+                    label,
                     role
                 });
+
+                offset =
+                    entryPattern.lastIndex;
+            }
+
+            if (
+                invalidFormat ||
+                roleEntries.length === 0 ||
+                roleEntries.length > 25
+            ) {
+
+                return message.reply(
+                    '🎭 따옴표 안에 버튼 문구를 입력한 뒤 역할을 멘션해주세요.\n' +
+                    '예시: `.역할판 "배틀그라운드" @역할1 "로블록스 역할" @역할2`\n' +
+                    '한 판에는 최대 25개 버튼까지 설정할 수 있습니다.'
+                );
             }
 
             const botMember =
@@ -2113,6 +2113,36 @@ client.on(
 
             try {
 
+                const rows = [];
+
+                for (
+                    let index = 0;
+                    index < roleEntries.length;
+                    index += 5
+                ) {
+                    const row =
+                        new ActionRowBuilder()
+                            .addComponents(
+                                roleEntries
+                                    .slice(index, index + 5)
+                                    .map(
+                                        (entry, offset) =>
+                                            new ButtonBuilder()
+                                                .setCustomId(
+                                                    `role_panel_${index + offset}`
+                                                )
+                                                .setLabel(
+                                                    entry.label
+                                                )
+                                                .setStyle(
+                                                    ButtonStyle.Primary
+                                                )
+                                    )
+                            );
+
+                    rows.push(row);
+                }
+
                 panelMessage =
                     await message.channel.send({
                         embeds: [
@@ -2121,38 +2151,32 @@ client.on(
                                     '🎭 역할 선택'
                                 )
                                 .setDescription(
-                                    '원하는 이모지를 눌러 역할을 받으세요.\n' +
-                                    '반응을 취소하면 해당 역할이 회수됩니다.\n\n' +
+                                    '원하는 버튼을 눌러 역할을 받거나 회수하세요.\n\n' +
                                     roleEntries
                                         .map(
                                             entry =>
-                                                `${entry.emoji} — ${entry.role}`
+                                                `**${entry.label}** — ${entry.role}`
                                         )
                                         .join('\n')
                                 )
                                 .setFooter({
                                     text:
-                                        '잔상봇 반응 역할 시스템'
+                                        '잔상봇 버튼 역할 시스템'
                                 })
-                        ]
+                        ],
+                        components: rows
                     });
-
-                for (const entry of roleEntries) {
-                    await panelMessage.react(
-                        entry.emoji
-                    );
-                }
 
                 reactionRolePanels.set(
                     panelMessage.id,
                     {
                         guildId:
                             message.guild.id,
-                        roleByEmoji:
+                        roleByButton:
                             Object.fromEntries(
                                 roleEntries.map(
-                                    entry => [
-                                        entry.emojiKey,
+                                    (entry, index) => [
+                                        index,
                                         entry.role.id
                                     ]
                                 )
@@ -2184,12 +2208,12 @@ client.on(
                 );
 
                 return message.reply(
-                    '❌ 역할판을 생성하지 못했습니다. 이모지가 유효한지, 봇에 메시지 전송·반응 추가·역할 관리 권한이 있는지 확인해주세요.'
+                    '❌ 역할판을 생성하지 못했습니다. 봇에 메시지 전송·역할 관리 권한이 있는지 확인해주세요.'
                 );
             }
 
             await message.reply(
-                `✅ 반응 역할판을 생성했습니다.\n📌 채널: ${message.channel}`
+                `✅ 버튼 역할판을 생성했습니다.\n📌 채널: ${message.channel}`
             );
 
             return;
@@ -2327,6 +2351,88 @@ client.on(
             interaction.guild;
 
         if (!guild) return;
+
+        const rolePanelButton =
+            interaction.customId.match(
+                /^role_panel_(\d+)$/
+            );
+
+        if (rolePanelButton) {
+
+            const panel =
+                reactionRolePanels.get(
+                    interaction.message.id
+                );
+
+            const roleId =
+                panel?.guildId === guild.id
+                    ? panel.roleByButton?.[rolePanelButton[1]]
+                    : null;
+
+            if (!roleId) {
+
+                return interaction.reply({
+                    content:
+                        '❌ 이 역할판 설정을 찾을 수 없습니다.',
+                    ephemeral: true
+                });
+            }
+
+            await interaction.deferReply({
+                ephemeral: true
+            });
+
+            try {
+
+                const [member, role] =
+                    await Promise.all([
+                        guild.members.fetch(
+                            interaction.user.id
+                        ),
+                        guild.roles.fetch(
+                            roleId
+                        )
+                    ]);
+
+                if (!role) {
+                    return interaction.editReply(
+                        '❌ 해당 역할을 찾을 수 없습니다.'
+                    );
+                }
+
+                if (!role.editable) {
+                    return interaction.editReply(
+                        '❌ 봇이 해당 역할을 관리할 수 없습니다. 봇 역할의 위치를 확인해주세요.'
+                    );
+                }
+
+                if (member.roles.cache.has(role.id)) {
+
+                    await member.roles.remove(role);
+
+                    return interaction.editReply(
+                        `❌ **${role.name}** 역할을 회수했습니다.`
+                    );
+                }
+
+                await member.roles.add(role);
+
+                return interaction.editReply(
+                    `✅ **${role.name}** 역할을 지급했습니다.`
+                );
+
+            } catch (error) {
+
+                console.error(
+                    '버튼 역할 처리 중 오류:',
+                    error
+                );
+
+                return interaction.editReply(
+                    '❌ 역할을 처리하는 중 오류가 발생했습니다. 봇에 역할 관리 권한이 있는지 확인해주세요.'
+                );
+            }
+        }
 
         // ====================
         // 게임 역할 버튼
@@ -2737,7 +2843,8 @@ async function updateReactionRole(
 
         if (
             !panel ||
-            panel.guildId !== reaction.message.guildId
+            panel.guildId !== reaction.message.guildId ||
+            !panel.roleByEmoji
         ) return;
 
         const emojiKey =
