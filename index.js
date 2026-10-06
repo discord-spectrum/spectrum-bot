@@ -6,6 +6,7 @@ const path = require('path');
 const {
     Client,
     GatewayIntentBits,
+    MessageFlags,
     PermissionsBitField,
     EmbedBuilder,
     ActionRowBuilder,
@@ -2374,12 +2375,12 @@ client.on(
                 return interaction.reply({
                     content:
                         '❌ 이 역할판 설정을 찾을 수 없습니다.',
-                    ephemeral: true
+                    flags: MessageFlags.Ephemeral
                 });
             }
 
             await interaction.deferReply({
-                ephemeral: true
+                flags: MessageFlags.Ephemeral
             });
 
             try {
@@ -2510,7 +2511,7 @@ client.on(
                 return interaction.reply({
                     content:
                         '❌ 해당 역할을 찾을 수 없습니다.',
-                    ephemeral: true
+                    flags: MessageFlags.Ephemeral
                 });
             }
 
@@ -2530,7 +2531,7 @@ client.on(
                     content:
                         '❌ 해당 역할이 봇의 역할보다 높거나 같은 위치에 있어 지급할 수 없습니다.\n\n' +
                         '서버 설정에서 잔상봇의 역할을 해당 게임 역할보다 위로 올려주세요.',
-                    ephemeral: true
+                    flags: MessageFlags.Ephemeral
                 });
             }
 
@@ -2549,7 +2550,7 @@ client.on(
                     return interaction.reply({
                         content:
                             `❌ **${selectedGame.name}** 역할을 회수했습니다.`,
-                        ephemeral: true
+                        flags: MessageFlags.Ephemeral
                     });
                 }
 
@@ -2560,7 +2561,7 @@ client.on(
                 return interaction.reply({
                     content:
                         `✅ **${selectedGame.name}** 역할을 지급했습니다.`,
-                    ephemeral: true
+                    flags: MessageFlags.Ephemeral
                 });
 
             } catch (error) {
@@ -2574,7 +2575,7 @@ client.on(
                     content:
                         '❌ 역할을 처리하는 중 오류가 발생했습니다.\n' +
                         '봇에게 **역할 관리** 권한이 있는지 확인해주세요.',
-                    ephemeral: true
+                    flags: MessageFlags.Ephemeral
                 });
             }
         }
@@ -2601,7 +2602,7 @@ client.on(
             return interaction.reply({
                 content:
                     '❌ 서버원 역할이 있는 멤버만 티켓을 열 수 있습니다.',
-                ephemeral: true
+                flags: MessageFlags.Ephemeral
             });
         }
 
@@ -2618,7 +2619,7 @@ client.on(
             return interaction.reply({
                 content:
                     '❌ 신고 카테고리를 찾을 수 없습니다.',
-                ephemeral: true
+                flags: MessageFlags.Ephemeral
             });
         }
 
@@ -2640,7 +2641,7 @@ client.on(
             return interaction.reply({
                 content:
                     `❌ 이미 생성된 신고 채널이 있습니다.\n${existingChannel}`,
-                ephemeral: true
+                flags: MessageFlags.Ephemeral
             });
         }
 
@@ -2786,7 +2787,7 @@ client.on(
             await interaction.reply({
                 content:
                     `✅ 신고 채널이 생성되었습니다.\n${channel}`,
-                ephemeral: true
+                flags: MessageFlags.Ephemeral
             });
 
             // ====================
@@ -2813,7 +2814,7 @@ client.on(
                 await interaction.reply({
                     content:
                         '❌ 티켓을 생성하는 중 오류가 발생했습니다.',
-                    ephemeral: true
+                    flags: MessageFlags.Ephemeral
                 });
             }
         }
