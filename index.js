@@ -10,7 +10,8 @@ const {
     EmbedBuilder,
     ActionRowBuilder,
     ButtonBuilder,
-    ButtonStyle
+    ButtonStyle,
+    Partials
 } = require('discord.js');
 
 // ====================
@@ -23,6 +24,7 @@ const ROLE_IDS = {
     viceOwner: '1556136077729988768',
     representative: '1556133097958015016',
     admin: '1556133196259655821',
+    adminAdditional: '1556520304262651934',
     owner: '1556133134188413089',
     member: '1556134858563264603'
 };
@@ -142,6 +144,7 @@ function canClean(member) {
     return hasRole(member, [
         ROLE_IDS.representative,
         ROLE_IDS.admin,
+        ROLE_IDS.adminAdditional,
         ROLE_IDS.owner
     ]);
 }
@@ -150,6 +153,7 @@ function canWarning(member) {
     return hasRole(member, [
         ROLE_IDS.security,
         ROLE_IDS.admin,
+        ROLE_IDS.adminAdditional,
         ROLE_IDS.owner
     ]);
 }
@@ -165,6 +169,7 @@ function canViewServerInfo(member) {
         ROLE_IDS.viceOwner,
         ROLE_IDS.representative,
         ROLE_IDS.admin,
+        ROLE_IDS.adminAdditional,
         ROLE_IDS.owner
     ]);
 }
@@ -175,6 +180,7 @@ function canViewUserInfo(member) {
         ROLE_IDS.viceOwner,
         ROLE_IDS.representative,
         ROLE_IDS.admin,
+        ROLE_IDS.adminAdditional,
         ROLE_IDS.owner
     ]);
 }
@@ -185,6 +191,7 @@ function canCloseTicket(member) {
         ROLE_IDS.viceOwner,
         ROLE_IDS.representative,
         ROLE_IDS.admin,
+        ROLE_IDS.adminAdditional,
         ROLE_IDS.owner
     ]);
 }
@@ -247,6 +254,71 @@ function saveWarnings() {
         warningsFile,
         JSON.stringify(
             data,
+            null,
+            2
+        ),
+        'utf8'
+    );
+}
+
+// ====================
+// 반응 역할 패널 데이터
+// ====================
+
+const reactionRolePanelsFile =
+    path.join(
+        __dirname,
+        'reactionRolePanels.json'
+    );
+
+const reactionRolePanels =
+    new Map();
+
+if (fs.existsSync(reactionRolePanelsFile)) {
+    try {
+        const data =
+            JSON.parse(
+                fs.readFileSync(
+                    reactionRolePanelsFile,
+                    'utf8'
+                )
+            );
+
+        for (
+            const [messageId, panel] of
+            Object.entries(data)
+        ) {
+            if (
+                typeof panel.guildId === 'string' &&
+                panel.roleByEmoji &&
+                typeof panel.roleByEmoji === 'object'
+            ) {
+                reactionRolePanels.set(
+                    messageId,
+                    panel
+                );
+            }
+        }
+
+        console.log(
+            '반응 역할 패널 데이터를 불러왔습니다.'
+        );
+
+    } catch (error) {
+        console.error(
+            '반응 역할 패널 데이터를 불러오는 중 오류가 발생했습니다:',
+            error
+        );
+    }
+}
+
+function saveReactionRolePanels() {
+    fs.writeFileSync(
+        reactionRolePanelsFile,
+        JSON.stringify(
+            Object.fromEntries(
+                reactionRolePanels
+            ),
             null,
             2
         ),
@@ -348,7 +420,14 @@ const client =
             GatewayIntentBits.Guilds,
             GatewayIntentBits.GuildMembers,
             GatewayIntentBits.GuildMessages,
+            GatewayIntentBits.GuildMessageReactions,
             GatewayIntentBits.MessageContent
+        ],
+        partials: [
+            Partials.Channel,
+            Partials.Message,
+            Partials.Reaction,
+            Partials.User
         ]
     });
 
@@ -700,6 +779,7 @@ client.on(
                 '🏠 `.서버정보` — 서버 정보 확인\n' +
                 '👤 `.유저정보 @멤버` — 멤버 정보 확인\n' +
                 '🎮 `.게임역할` — 게임 역할 선택판 생성\n' +
+                '🎭 `.역할판 😀 @역할1 🎮 @역할2` — 반응 역할판 생성 (소유주 전용)\n' +
                 '🎫 `.티켓` — 티켓 안내판 생성 (소유주 전용)\n' +
                 '🔒 `.티켓닫기` — 신고 채널 닫기\n' +
                 '📢 `.관리자멘션` — 관리자 전체 멘션 (소유주 전용)'
@@ -1896,6 +1976,226 @@ client.on(
         }
 
         // ====================
+        // 반응 역할판 생성
+        // ====================
+
+        if (
+            message.content === '.역할판' ||
+            message.content.startsWith('.역할판 ')
+        ) {
+
+            if (!canPunish(message.member)) {
+
+                return message.reply(
+                    '❌ 이 명령어는 서버 소유주만 사용할 수 있습니다.'
+                );
+            }
+
+            const args =
+                message.content
+                    .trim()
+                    .split(/\s+/)
+                    .slice(1);
+
+            if (
+                args.length < 2 ||
+                args.length % 2 !== 0 ||
+                args.length > 40
+            ) {
+
+                return message.reply(
+                    '🎭 반응 이모지와 역할 멘션을 짝으로 입력해주세요.\n' +
+                    '예시: `.역할판 😀 @역할1 🎮 @역할2`\n' +
+                    '한 판에는 최대 20개 역할까지 설정할 수 있습니다.'
+                );
+            }
+
+            const roleEntries = [];
+            const usedEmojiKeys = new Set();
+            const usedRoleIds = new Set();
+
+            for (
+                let index = 0;
+                index < args.length;
+                index += 2
+            ) {
+                const emoji =
+                    args[index];
+
+                const roleMention =
+                    args[index + 1].match(
+                        /^<@&(\d+)>$/
+                    );
+
+                if (!roleMention) {
+
+                    return message.reply(
+                        `❌ ${args[index + 1]}은(는) 역할 멘션이 아닙니다.\n` +
+                        '각 이모지 뒤에 역할을 멘션해주세요.'
+                    );
+                }
+
+                const customEmoji =
+                    emoji.match(
+                        /^<a?:[A-Za-z0-9_]+:(\d+)>$/
+                    );
+
+                const emojiKey =
+                    customEmoji
+                        ? customEmoji[1]
+                        : emoji;
+
+                if (usedEmojiKeys.has(emojiKey)) {
+
+                    return message.reply(
+                        `❌ ${emoji} 이모지가 중복되었습니다.`
+                    );
+                }
+
+                if (usedRoleIds.has(roleMention[1])) {
+
+                    return message.reply(
+                        '❌ 하나의 역할은 한 번만 등록할 수 있습니다.'
+                    );
+                }
+
+                const role =
+                    message.guild.roles.cache.get(
+                        roleMention[1]
+                    );
+
+                if (!role) {
+
+                    return message.reply(
+                        `❌ ${args[index + 1]} 역할을 찾을 수 없습니다.`
+                    );
+                }
+
+                if (!role.editable) {
+
+                    return message.reply(
+                        `❌ ${role} 역할은 봇이 관리할 수 없습니다.\n` +
+                        '봇의 역할보다 아래에 있는 역할만 등록할 수 있습니다.'
+                    );
+                }
+
+                usedEmojiKeys.add(
+                    emojiKey
+                );
+
+                usedRoleIds.add(
+                    role.id
+                );
+
+                roleEntries.push({
+                    emoji,
+                    emojiKey,
+                    role
+                });
+            }
+
+            const botMember =
+                message.guild.members.me ||
+                await message.guild.members.fetchMe();
+
+            if (
+                !botMember.permissions.has(
+                    PermissionsBitField.Flags.ManageRoles
+                )
+            ) {
+
+                return message.reply(
+                    '❌ 봇에게 역할 관리 권한이 없습니다.'
+                );
+            }
+
+            let panelMessage;
+
+            try {
+
+                panelMessage =
+                    await message.channel.send({
+                        embeds: [
+                            new EmbedBuilder()
+                                .setTitle(
+                                    '🎭 역할 선택'
+                                )
+                                .setDescription(
+                                    '원하는 이모지를 눌러 역할을 받으세요.\n' +
+                                    '반응을 취소하면 해당 역할이 회수됩니다.\n\n' +
+                                    roleEntries
+                                        .map(
+                                            entry =>
+                                                `${entry.emoji} — ${entry.role}`
+                                        )
+                                        .join('\n')
+                                )
+                                .setFooter({
+                                    text:
+                                        '잔상봇 반응 역할 시스템'
+                                })
+                        ]
+                    });
+
+                for (const entry of roleEntries) {
+                    await panelMessage.react(
+                        entry.emoji
+                    );
+                }
+
+                reactionRolePanels.set(
+                    panelMessage.id,
+                    {
+                        guildId:
+                            message.guild.id,
+                        roleByEmoji:
+                            Object.fromEntries(
+                                roleEntries.map(
+                                    entry => [
+                                        entry.emojiKey,
+                                        entry.role.id
+                                    ]
+                                )
+                            )
+                    }
+                );
+
+                saveReactionRolePanels();
+
+            } catch (error) {
+
+                reactionRolePanels.delete(
+                    panelMessage?.id
+                );
+
+                if (panelMessage) {
+                    await panelMessage.delete()
+                        .catch(cleanupError => {
+                            console.error(
+                                '반응 역할판 정리 중 오류:',
+                                cleanupError
+                            );
+                        });
+                }
+
+                console.error(
+                    '반응 역할판 생성 중 오류:',
+                    error
+                );
+
+                return message.reply(
+                    '❌ 역할판을 생성하지 못했습니다. 이모지가 유효한지, 봇에 메시지 전송·반응 추가·역할 관리 권한이 있는지 확인해주세요.'
+                );
+            }
+
+            await message.reply(
+                `✅ 반응 역할판을 생성했습니다.\n📌 채널: ${message.channel}`
+            );
+
+            return;
+        }
+
+        // ====================
         // 티켓 안내판 생성
         // ====================
 
@@ -2339,6 +2639,17 @@ client.on(
 
                         {
                             id:
+                                ROLE_IDS.adminAdditional,
+
+                            allow: [
+                                PermissionsBitField.Flags.ViewChannel,
+                                PermissionsBitField.Flags.SendMessages,
+                                PermissionsBitField.Flags.ReadMessageHistory
+                            ]
+                        },
+
+                        {
+                            id:
                                 ROLE_IDS.owner,
 
                             allow: [
@@ -2400,6 +2711,104 @@ client.on(
                 });
             }
         }
+    }
+);
+
+async function updateReactionRole(
+    reaction,
+    user,
+    shouldHaveRole
+) {
+    if (user.bot) return;
+
+    try {
+        if (reaction.partial) {
+            await reaction.fetch();
+        }
+
+        if (user.partial) {
+            await user.fetch();
+        }
+
+        const panel =
+            reactionRolePanels.get(
+                reaction.message.id
+            );
+
+        if (
+            !panel ||
+            panel.guildId !== reaction.message.guildId
+        ) return;
+
+        const emojiKey =
+            reaction.emoji.id ||
+            reaction.emoji.name;
+
+        const roleId =
+            panel.roleByEmoji[emojiKey];
+
+        if (!roleId) return;
+
+        const guild =
+            reaction.message.guild;
+
+        if (!guild) return;
+
+        const [member, role] =
+            await Promise.all([
+                guild.members.fetch(user.id),
+                guild.roles.fetch(roleId)
+            ]);
+
+        if (!role) {
+            console.error(
+                `[반응 역할 오류] 역할을 찾을 수 없습니다: ${roleId}`
+            );
+            return;
+        }
+
+        if (!role.editable) {
+            console.error(
+                `[반응 역할 오류] 봇이 역할을 관리할 수 없습니다: ${roleId}`
+            );
+            return;
+        }
+
+        if (shouldHaveRole) {
+            if (!member.roles.cache.has(role.id)) {
+                await member.roles.add(role);
+            }
+        } else if (member.roles.cache.has(role.id)) {
+            await member.roles.remove(role);
+        }
+
+    } catch (error) {
+        console.error(
+            '반응 역할 처리 중 오류:',
+            error
+        );
+    }
+}
+
+client.on(
+    'messageReactionAdd',
+    async (reaction, user) => {
+        await updateReactionRole(
+            reaction,
+            user,
+            true
+        );
+    }
+);
+
+client.on(
+    'messageReactionRemove',
+    async (reaction, user) => {
+        await updateReactionRole(
+            reaction,
+            user,
+            false
+        );
     }
 );
 
