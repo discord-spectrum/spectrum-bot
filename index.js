@@ -20,13 +20,12 @@ const {
 // ====================
 
 const ROLE_IDS = {
-    security: '1556134144428212364',
-    guide: '1556134324393213952',
-    viceOwner: '1556136077729988768',
-    representative: '1556133097958015016',
-    admin: '1556133196259655821',
-    adminAdditional: '1556520304262651934',
-    owner: '1556133134188413089',
+    security: '1568963132238463066',
+    guide: '1568963132238463066',
+    viceOwner: '1568963132238463066',
+    representative: '1568963132238463066',
+    admin: '1568963132238463066',
+    owner: '1568963132238463066',
     member: '1556134858563264603'
 };
 
@@ -1988,8 +1987,6 @@ client.on(
         // 버튼 역할판 생성
         // ====================
 
-        const { MessageFlags } = require('discord.js');
-        
         if (
             message.content === '.역할판' ||
             message.content.startsWith('.역할판 ')
