@@ -6,6 +6,7 @@ const path = require('path');
 const {
     Client,
     GatewayIntentBits,
+    MessageType,
     MessageFlags,
     PermissionsBitField,
     EmbedBuilder,
@@ -487,35 +488,35 @@ rolePanelCommand.addStringOption(
             .setRequired(false)
 );
 
-for (let index = 1; index <= 12; index += 1) {
-    rolePanelCommand.addStringOption(
-        option =>
-            option
-                .setName(`button-name-${index}`)
-                .setNameLocalizations({
-                    ko: `버튼이름${index}`
-                })
-                .setDescription(
-                    `${index}번째 버튼에 표시할 이름`
-                )
-                .setMinLength(1)
-                .setMaxLength(80)
-                .setRequired(false)
-    );
+rolePanelCommand.addStringOption(
+    option =>
+        option
+            .setName('button-names')
+            .setNameLocalizations({
+                ko: '버튼이름'
+            })
+            .setDescription(
+                '버튼 이름을 쉼표로 구분해 입력 (예: 배틀그라운드, 로블록스)'
+            )
+            .setMinLength(1)
+            .setMaxLength(1000)
+            .setRequired(true)
+);
 
-    rolePanelCommand.addRoleOption(
-        option =>
-            option
-                .setName(`receive-role-${index}`)
-                .setNameLocalizations({
-                    ko: `받을역할${index}`
-                })
-                .setDescription(
-                    `${index}번째 버튼으로 지급할 역할`
-                )
-                .setRequired(false)
-    );
-}
+rolePanelCommand.addStringOption(
+    option =>
+        option
+            .setName('receive-roles')
+            .setNameLocalizations({
+                ko: '받을역할'
+            })
+            .setDescription(
+                '지급할 역할을 멘션해 입력 (버튼 순서와 동일, 쉼표로 구분)'
+            )
+            .setMinLength(1)
+            .setMaxLength(1000)
+            .setRequired(true)
+);
 
 const boostMessageTestCommand =
     new SlashCommandBuilder()
@@ -907,12 +908,45 @@ async function sendBoostAnnouncement(guild, userId) {
 }
 
 client.on(
+    'messageCreate',
+    async message => {
+        const boostTypes = [
+            MessageType.GuildBoost,
+            MessageType.GuildBoostTier1,
+            MessageType.GuildBoostTier2,
+            MessageType.GuildBoostTier3
+        ];
+
+        if (
+            !message.guild ||
+            !message.author ||
+            !boostTypes.includes(message.type)
+        ) return;
+
+        try {
+            await message.channel.send(
+                `🚀 ${message.author}님이 서버에 부스트를 추가했습니다!`
+            );
+        } catch (error) {
+            console.error(
+                '[부스트 시스템 메시지 알림 오류]',
+                error
+            );
+        }
+    }
+);
+
+client.on(
     'guildMemberUpdate',
     async (oldMember, newMember) => {
         if (
-            oldMember.premiumSince ||
-            !newMember.premiumSince
+            oldMember.premiumSinceTimestamp !== null ||
+            newMember.premiumSinceTimestamp === null
         ) return;
+
+        console.log(
+            `[부스트 감지] ${newMember.user.tag} (${newMember.id})`
+        );
 
         try {
             await sendBoostAnnouncement(
@@ -2500,16 +2534,20 @@ client.on(
 
             const roleEntries = [];
             const usedRoleIds = new Set();
-            const panelNameOption =
-                interaction.options.data.find(
-                    option =>
-                        option.name === 'panel-name' ||
-                        option.name === '역할판이름'
-                );
             const panelName =
-                typeof panelNameOption?.value === 'string'
-                    ? panelNameOption.value.trim()
-                    : '';
+                interaction.options.getString('panel-name')?.trim() || '';
+            const buttonNames =
+                interaction.options.getString('button-names')
+                    .split(',')
+                    .map(label => label.trim());
+            const roleMentions =
+                interaction.options.getString('receive-roles');
+            const roleIds =
+                [...roleMentions.matchAll(/<@&(\d+)>/g)]
+                    .map(match => match[1]);
+            const invalidRoleText =
+                roleMentions.replace(/<@&\d+>/g, '')
+                    .replace(/[\s,]/g, '');
 
             if (panelName.length > 256) {
                 return interaction.editReply(
@@ -2517,40 +2555,28 @@ client.on(
                 );
             }
 
-            for (let index = 1; index <= 12; index += 1) {
-                const buttonNameOption =
-                    interaction.options.data.find(
-                        option =>
-                            option.name === `button-name-${index}` ||
-                            option.name === `버튼이름${index}`
-                    );
-                const roleOption =
-                    interaction.options.data.find(
-                        option =>
-                            option.name === `receive-role-${index}` ||
-                            option.name === `받을역할${index}`
-                    );
-                const label =
-                    typeof buttonNameOption?.value === 'string'
-                        ? buttonNameOption.value.trim()
-                        : '';
-                const roleId =
-                    roleOption?.role?.id ??
-                    (typeof roleOption?.value === 'string'
-                        ? roleOption.value
-                        : null);
+            if (
+                buttonNames.length !== roleIds.length ||
+                invalidRoleText
+            ) {
+                return interaction.editReply(
+                    '❌ 버튼 이름과 역할 멘션의 개수를 맞춰주세요. 예: 이름1, 이름2 / @역할1, @역할2'
+                );
+            }
 
-                if (!label && !roleId) continue;
+            if (buttonNames.length > 25) {
+                return interaction.editReply(
+                    '❌ 역할판은 최대 25개 버튼까지 설정할 수 있습니다.'
+                );
+            }
 
-                if (!label || !roleId) {
+            for (let index = 0; index < buttonNames.length; index += 1) {
+                const label = buttonNames[index];
+                const roleId = roleIds[index];
+
+                if (!label || label.length > 80) {
                     return interaction.editReply(
-                        `❌ ${index}번째 버튼 이름과 받을 역할을 모두 입력해주세요.`
-                    );
-                }
-
-                if (label.length > 80) {
-                    return interaction.editReply(
-                        `❌ ${index}번째 버튼 이름은 80자 이내로 입력해주세요.`
+                        `❌ ${index + 1}번째 버튼 이름은 비워둘 수 없으며 80자 이내여야 합니다.`
                     );
                 }
 
@@ -2585,7 +2611,7 @@ client.on(
 
             if (roleEntries.length === 0) {
                 return interaction.editReply(
-                    '🎭 버튼 이름과 받을 역할을 한 쌍 이상 지정해주세요. 최대 12개까지 추가할 수 있습니다.'
+                    '🎭 버튼 이름과 받을 역할을 한 쌍 이상 지정해주세요.'
                 );
             }
 
