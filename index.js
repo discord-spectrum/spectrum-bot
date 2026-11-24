@@ -12,22 +12,19 @@ const {
     ActionRowBuilder,
     ButtonBuilder,
     ButtonStyle,
+    SlashCommandBuilder,
     Partials
 } = require('discord.js');
 
 // ====================
-// 역할 ID 설정
+// 관리자 역할 ID 설정
 // ====================
 
-const ROLE_IDS = {
-    security: '1568963132238463066',
-    guide: '1568963132238463066',
-    viceOwner: '1568963132238463066',
-    representative: '1568963132238463066',
-    admin: '1568963132238463066',
-    owner: '1568963132238463066',
-    member: '1556134858563264603'
-};
+const ADMIN_ROLE_IDS =
+    require('./adminRoleIds.json');
+
+const MEMBER_ROLE_ID =
+    '1556134858563264603';
 
 // ====================
 // 게임 역할 ID 설정
@@ -103,9 +100,6 @@ const CLEAN_LOG_CHANNEL_ID =
 // 관리자 멘션 설정
 // ====================
 
-const ADMIN_MENTION_ROLE_ID =
-    '1556134768565952614';
-
 const ADMIN_MENTION_CHANNEL_ID =
     '1556143436032245770';
 
@@ -142,69 +136,69 @@ function hasRole(member, roleIds) {
 
 function canClean(member) {
     return hasRole(member, [
-        ROLE_IDS.representative,
-        ROLE_IDS.admin,
-        ROLE_IDS.adminAdditional,
-        ROLE_IDS.owner
+        ADMIN_ROLE_IDS.representative,
+        ADMIN_ROLE_IDS.admin,
+        ADMIN_ROLE_IDS.adminAdditional,
+        ADMIN_ROLE_IDS.owner
     ]);
 }
 
 function canWarning(member) {
     return hasRole(member, [
-        ROLE_IDS.security,
-        ROLE_IDS.admin,
-        ROLE_IDS.adminAdditional,
-        ROLE_IDS.owner
+        ADMIN_ROLE_IDS.security,
+        ADMIN_ROLE_IDS.admin,
+        ADMIN_ROLE_IDS.adminAdditional,
+        ADMIN_ROLE_IDS.owner
     ]);
 }
 
 function canPunish(member) {
     return hasRole(member, [
-        ROLE_IDS.owner
+        ADMIN_ROLE_IDS.owner
     ]);
 }
 
 function canViewServerInfo(member) {
     return hasRole(member, [
-        ROLE_IDS.viceOwner,
-        ROLE_IDS.representative,
-        ROLE_IDS.admin,
-        ROLE_IDS.adminAdditional,
-        ROLE_IDS.owner
+        ADMIN_ROLE_IDS.viceOwner,
+        ADMIN_ROLE_IDS.representative,
+        ADMIN_ROLE_IDS.admin,
+        ADMIN_ROLE_IDS.adminAdditional,
+        ADMIN_ROLE_IDS.owner
     ]);
 }
 
 function canViewUserInfo(member) {
     return hasRole(member, [
-        ROLE_IDS.guide,
-        ROLE_IDS.viceOwner,
-        ROLE_IDS.representative,
-        ROLE_IDS.admin,
-        ROLE_IDS.adminAdditional,
-        ROLE_IDS.owner
+        ADMIN_ROLE_IDS.guide,
+        ADMIN_ROLE_IDS.viceOwner,
+        ADMIN_ROLE_IDS.representative,
+        ADMIN_ROLE_IDS.admin,
+        ADMIN_ROLE_IDS.adminAdditional,
+        ADMIN_ROLE_IDS.owner
     ]);
 }
 
 function canCloseTicket(member) {
     return hasRole(member, [
-        ROLE_IDS.security,
-        ROLE_IDS.viceOwner,
-        ROLE_IDS.representative,
-        ROLE_IDS.admin,
-        ROLE_IDS.adminAdditional,
-        ROLE_IDS.owner
+        ADMIN_ROLE_IDS.security,
+        ADMIN_ROLE_IDS.viceOwner,
+        ADMIN_ROLE_IDS.representative,
+        ADMIN_ROLE_IDS.admin,
+        ADMIN_ROLE_IDS.adminAdditional,
+        ADMIN_ROLE_IDS.owner
     ]);
 }
 
 function canCreateTicketPanel(member) {
     return hasRole(member, [
-        ROLE_IDS.owner
+        ADMIN_ROLE_IDS.owner
     ]);
 }
 
 function canOpenTicket(member) {
     return hasRole(member, [
-        ROLE_IDS.member
+        MEMBER_ROLE_ID
     ]);
 }
 
@@ -334,6 +328,108 @@ function saveReactionRolePanels() {
     );
 }
 
+async function sendReactionRolePanel(
+    guild,
+    channel,
+    roleEntries
+) {
+    let panelMessage;
+
+    try {
+        const rows = [];
+
+        for (
+            let index = 0;
+            index < roleEntries.length;
+            index += 5
+        ) {
+            const row =
+                new ActionRowBuilder()
+                    .addComponents(
+                        roleEntries
+                            .slice(index, index + 5)
+                            .map(
+                                (entry, offset) =>
+                                    new ButtonBuilder()
+                                        .setCustomId(
+                                            `role_panel_${index + offset}`
+                                        )
+                                        .setLabel(
+                                            entry.label
+                                        )
+                                        .setStyle(
+                                            ButtonStyle.Primary
+                                        )
+                            )
+                    );
+
+            rows.push(row);
+        }
+
+        panelMessage =
+            await channel.send({
+                embeds: [
+                    new EmbedBuilder()
+                        .setTitle(
+                            '🎭 역할 선택'
+                        )
+                        .setDescription(
+                            '원하는 버튼을 눌러 역할을 받거나 회수하세요.\n\n' +
+                            roleEntries
+                                .map(
+                                    entry =>
+                                        `**${entry.label}** — ${entry.role}`
+                                )
+                                .join('\n')
+                        )
+                        .setFooter({
+                            text:
+                                '잔상봇 버튼 역할 시스템'
+                        })
+                ],
+                components: rows
+            });
+
+        reactionRolePanels.set(
+            panelMessage.id,
+            {
+                guildId:
+                    guild.id,
+                roleByButton:
+                    Object.fromEntries(
+                        roleEntries.map(
+                            (entry, index) => [
+                                index,
+                                entry.role.id
+                            ]
+                        )
+                    )
+            }
+        );
+
+        saveReactionRolePanels();
+
+        return panelMessage;
+
+    } catch (error) {
+        reactionRolePanels.delete(
+            panelMessage?.id
+        );
+
+        if (panelMessage) {
+            await panelMessage.delete()
+                .catch(cleanupError => {
+                    console.error(
+                        '반응 역할판 정리 중 오류:',
+                        cleanupError
+                    );
+                });
+        }
+
+        throw error;
+    }
+}
+
 // ====================
 // 관리 로그 보내기
 // ====================
@@ -439,6 +535,32 @@ const client =
         ]
     });
 
+const rolePanelCommand =
+    new SlashCommandBuilder()
+        .setName('role-panel')
+        .setNameLocalizations({
+            ko: '역할판'
+        })
+        .setDescription(
+            '역할 자동완성으로 버튼 역할판을 생성합니다.'
+        );
+
+for (let index = 1; index <= 25; index += 1) {
+    rolePanelCommand.addStringOption(
+        option =>
+            option
+                .setName(`role-${index}`)
+                .setNameLocalizations({
+                    ko: `역할${index}`
+                })
+                .setDescription(
+                    `${index}번째 역할판 버튼에 추가할 역할`
+                )
+                .setAutocomplete(true)
+                .setRequired(false)
+    );
+}
+
 // ====================
 // 로그인 완료
 // ====================
@@ -450,6 +572,32 @@ client.once(
         console.log(
             `잔상봇 로그인 완료! ${client.user.tag}`
         );
+
+        try {
+            const commands =
+                await client.application.commands.fetch();
+
+            const existingCommand =
+                commands.find(
+                    command =>
+                        command.name === 'role-panel'
+                );
+
+            if (existingCommand) {
+                await existingCommand.edit(
+                    rolePanelCommand.toJSON()
+                );
+            } else {
+                await client.application.commands.create(
+                    rolePanelCommand.toJSON()
+                );
+            }
+        } catch (error) {
+            console.error(
+                '역할판 슬래시 명령어 등록 중 오류:',
+                error
+            );
+        }
 
         for (
             const guild of client.guilds.cache.values()
@@ -788,6 +936,7 @@ client.on(
                 '👤 `.유저정보 @멤버` — 멤버 정보 확인\n' +
                 '🎮 `.게임역할` — 게임 역할 선택판 생성\n' +
                 '🎭 `.역할판 "버튼 문구" @역할 "버튼 문구2" @역할2` — 버튼 역할판 생성 (소유주 전용)\n' +
+                '🎭 `/역할판` — 역할 자동완성으로 버튼 역할판 생성 (소유주 전용)\n' +
                 '🎫 `.티켓` — 티켓 안내판 생성 (소유주 전용)\n' +
                 '🔒 `.티켓닫기` — 신고 채널 닫기\n' +   
                 '📢 `.관리자멘션` — 관리자 전체 멘션 (소유주 전용)'
@@ -827,11 +976,11 @@ client.on(
 
                 await adminMentionChannel.send({
                     content:
-                        `<@&${ADMIN_MENTION_ROLE_ID}>`,
+                        `<@&${ADMIN_ROLE_IDS.mention}>`,
 
                     allowedMentions: {
                         roles: [
-                            ADMIN_MENTION_ROLE_ID
+                            ADMIN_ROLE_IDS.mention
                         ]
                     }
                 });
@@ -2109,99 +2258,14 @@ client.on(
                 );
             }
 
-            let panelMessage;
-
             try {
-
-                const rows = [];
-
-                for (
-                    let index = 0;
-                    index < roleEntries.length;
-                    index += 5
-                ) {
-                    const row =
-                        new ActionRowBuilder()
-                            .addComponents(
-                                roleEntries
-                                    .slice(index, index + 5)
-                                    .map(
-                                        (entry, offset) =>
-                                            new ButtonBuilder()
-                                                .setCustomId(
-                                                    `role_panel_${index + offset}`
-                                                )
-                                                .setLabel(
-                                                    entry.label
-                                                )
-                                                .setStyle(
-                                                    ButtonStyle.Primary
-                                                )
-                                    )
-                            );
-
-                    rows.push(row);
-                }
-
-                panelMessage =
-                    await message.channel.send({
-                        embeds: [
-                            new EmbedBuilder()
-                                .setTitle(
-                                    '🎭 역할 선택'
-                                )
-                                .setDescription(
-                                    '원하는 버튼을 눌러 역할을 받거나 회수하세요.\n\n' +
-                                    roleEntries
-                                        .map(
-                                            entry =>
-                                                `**${entry.label}** — ${entry.role}`
-                                        )
-                                        .join('\n')
-                                )
-                                .setFooter({
-                                    text:
-                                        '잔상봇 버튼 역할 시스템'
-                                })
-                        ],
-                        components: rows
-                    });
-
-                reactionRolePanels.set(
-                    panelMessage.id,
-                    {
-                        guildId:
-                            message.guild.id,
-                        roleByButton:
-                            Object.fromEntries(
-                                roleEntries.map(
-                                    (entry, index) => [
-                                        index,
-                                        entry.role.id
-                                    ]
-                                )
-                            )
-                    }
+                await sendReactionRolePanel(
+                    message.guild,
+                    message.channel,
+                    roleEntries
                 );
-
-                saveReactionRolePanels();
 
             } catch (error) {
-
-                reactionRolePanels.delete(
-                    panelMessage?.id
-                );
-
-                if (panelMessage) {
-                    await panelMessage.delete()
-                        .catch(cleanupError => {
-                            console.error(
-                                '반응 역할판 정리 중 오류:',
-                                cleanupError
-                            );
-                        });
-                }
-
                 console.error(
                     '반응 역할판 생성 중 오류:',
                     error
@@ -2344,6 +2408,187 @@ client.on(
 client.on(
     'interactionCreate',
     async interaction => {
+
+        if (interaction.isAutocomplete()) {
+            if (
+                interaction.commandName !== 'role-panel' &&
+                interaction.commandName !== '역할판'
+            ) return;
+
+            try {
+                const guild =
+                    interaction.guild;
+
+                if (!guild) {
+                    return interaction.respond([]);
+                }
+
+                const focused =
+                    interaction.options.getFocused(true);
+
+                const search =
+                    String(focused.value)
+                        .toLocaleLowerCase('ko');
+
+                const matchingRoles =
+                    guild.roles.cache
+                        .filter(
+                            role =>
+                                role.id !== guild.id &&
+                                role.editable &&
+                                !role.managed &&
+                                `${role.name} ${role.id}`
+                                    .toLocaleLowerCase('ko')
+                                    .includes(search)
+                        )
+                        .sort(
+                            (first, second) =>
+                                first.name.localeCompare(
+                                    second.name,
+                                    'ko'
+                                )
+                        )
+                        .first(25);
+
+                return interaction.respond(
+                    matchingRoles.map(
+                        role => ({
+                            name:
+                                `${[...role.name].slice(0, 75).join('')} (${role.id})`,
+                            value:
+                                role.id
+                        })
+                    )
+                );
+            } catch (error) {
+                console.error(
+                    '역할판 역할 자동완성 중 오류:',
+                    error
+                );
+
+                return interaction.respond([]);
+            }
+        }
+
+        if (interaction.isChatInputCommand()) {
+            if (
+                interaction.commandName !== 'role-panel' &&
+                interaction.commandName !== '역할판'
+            ) return;
+
+            if (!interaction.guild) {
+                return interaction.reply({
+                    content:
+                        '❌ 서버에서만 사용할 수 있는 명령어입니다.',
+                    flags: MessageFlags.Ephemeral
+                });
+            }
+
+            if (!canPunish(interaction.member)) {
+                return interaction.reply({
+                    content:
+                        '❌ 이 명령어는 서버 소유주만 사용할 수 있습니다.',
+                    flags: MessageFlags.Ephemeral
+                });
+            }
+
+            await interaction.deferReply({
+                flags: MessageFlags.Ephemeral
+            });
+
+            const guild =
+                interaction.guild;
+
+            const roleEntries = [];
+            const usedRoleIds = new Set();
+
+            for (let index = 1; index <= 25; index += 1) {
+                const roleOption =
+                    interaction.options.data.find(
+                        option =>
+                            option.name === `role-${index}` ||
+                            option.name === `역할${index}`
+                    );
+
+                const roleId =
+                    typeof roleOption?.value === 'string'
+                        ? roleOption.value
+                        : null;
+
+                if (!roleId) continue;
+
+                if (usedRoleIds.has(roleId)) {
+                    return interaction.editReply(
+                        '❌ 하나의 역할은 한 번만 등록할 수 있습니다.'
+                    );
+                }
+
+                const role =
+                    guild.roles.cache.get(roleId);
+
+                if (!role) {
+                    return interaction.editReply(
+                        '❌ 선택한 역할을 찾을 수 없습니다. 역할을 다시 선택해주세요.'
+                    );
+                }
+
+                if (!role.editable) {
+                    return interaction.editReply(
+                        `❌ ${role} 역할은 봇이 관리할 수 없습니다.\n` +
+                        '봇의 역할보다 아래에 있는 역할만 등록할 수 있습니다.'
+                    );
+                }
+
+                usedRoleIds.add(roleId);
+                roleEntries.push({
+                    label:
+                        [...role.name].slice(0, 80).join(''),
+                    role
+                });
+            }
+
+            if (roleEntries.length === 0) {
+                return interaction.editReply(
+                    '🎭 자동완성으로 역할을 하나 이상 선택해주세요. 최대 25개까지 추가할 수 있습니다.'
+                );
+            }
+
+            const botMember =
+                guild.members.me ||
+                await guild.members.fetchMe();
+
+            if (
+                !botMember.permissions.has(
+                    PermissionsBitField.Flags.ManageRoles
+                )
+            ) {
+                return interaction.editReply(
+                    '❌ 봇에게 역할 관리 권한이 없습니다.'
+                );
+            }
+
+            try {
+                const panelMessage =
+                    await sendReactionRolePanel(
+                        guild,
+                        interaction.channel,
+                        roleEntries
+                    );
+
+                return interaction.editReply(
+                    `✅ 버튼 역할판을 생성했습니다.\n📌 채널: ${panelMessage.channel}`
+                );
+            } catch (error) {
+                console.error(
+                    '슬래시 역할판 생성 중 오류:',
+                    error
+                );
+
+                return interaction.editReply(
+                    '❌ 역할판을 생성하지 못했습니다. 봇에 메시지 전송·역할 관리 권한이 있는지 확인해주세요.'
+                );
+            }
+        }
 
         if (!interaction.isButton()) return;
 
@@ -2701,7 +2946,7 @@ client.on(
 
                         {
                             id:
-                                ROLE_IDS.security,
+                                ADMIN_ROLE_IDS.security,
 
                             allow: [
                                 PermissionsBitField.Flags.ViewChannel,
@@ -2712,7 +2957,7 @@ client.on(
 
                         {
                             id:
-                                ROLE_IDS.viceOwner,
+                                ADMIN_ROLE_IDS.viceOwner,
 
                             allow: [
                                 PermissionsBitField.Flags.ViewChannel,
@@ -2723,7 +2968,7 @@ client.on(
 
                         {
                             id:
-                                ROLE_IDS.representative,
+                                ADMIN_ROLE_IDS.representative,
 
                             allow: [
                                 PermissionsBitField.Flags.ViewChannel,
@@ -2734,7 +2979,7 @@ client.on(
 
                         {
                             id:
-                                ROLE_IDS.admin,
+                                ADMIN_ROLE_IDS.admin,
 
                             allow: [
                                 PermissionsBitField.Flags.ViewChannel,
@@ -2745,7 +2990,7 @@ client.on(
 
                         {
                             id:
-                                ROLE_IDS.adminAdditional,
+                                ADMIN_ROLE_IDS.adminAdditional,
 
                             allow: [
                                 PermissionsBitField.Flags.ViewChannel,
@@ -2756,7 +3001,7 @@ client.on(
 
                         {
                             id:
-                                ROLE_IDS.owner,
+                                ADMIN_ROLE_IDS.owner,
 
                             allow: [
                                 PermissionsBitField.Flags.ViewChannel,
