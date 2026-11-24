@@ -23,6 +23,9 @@ const {
 const ADMIN_ROLE_IDS =
     require('./adminRoleIds.json');
 
+const CHANNEL_IDS =
+    require('./channelIds.json');
+
 const MEMBER_ROLE_ID =
     '1556134858563264603';
 
@@ -41,90 +44,6 @@ const GAME_ROLE_IDS = {
 };
 
 // ====================
-// 입장 로그 채널
-// ====================
-
-const JOIN_LOG_CHANNEL_ID =
-    '1556141798060195870';
-
-// ====================
-// 서버 입장 환영 채널
-// ====================
-
-const WELCOME_CHANNEL_ID =
-    '1556143653670355014';
-
-// ====================
-// 퇴장 로그 채널
-// ====================
-
-const LEAVE_LOG_CHANNEL_ID =
-    '1556141818427613301';
-
-// ====================
-// 경고 차감 로그 채널
-// ====================
-
-const WARNING_LOG_CHANNEL_ID =
-    '1556148017873166356';
-
-// ====================
-// 경고 지급 로그 채널
-// ====================
-
-const WARNING_ISSUE_LOG_CHANNEL_ID =
-    '1556147970297045043';
-
-// ====================
-// 추방 로그 채널
-// ====================
-
-const KICK_LOG_CHANNEL_ID =
-    '1556147970297045043';
-
-// ====================
-// 티켓 로그 채널
-// ====================
-
-const TICKET_LOG_CHANNEL_ID =
-    '1556147255327723623';
-
-// ====================
-// 청소 로그 채널
-// ====================
-
-const CLEAN_LOG_CHANNEL_ID =
-    '1556573455002898452';
-
-// ====================
-// 관리자 멘션 설정
-// ====================
-
-const ADMIN_MENTION_CHANNEL_ID =
-    '1556143436032245770';
-
-// ====================
-// 영구차단 로그 채널
-// ====================
-
-const PERMANENT_BAN_LOG_CHANNEL_ID =
-    '1556147237749391412';
-
-// ====================
-// 영구차단 해제 로그 채널
-// ====================
-
-const PERMANENT_UNBAN_LOG_CHANNEL_ID =
-    '1556590681017946182';
-
-// ====================
-// 신고 카테고리
-// ====================
-
-const TICKET_CATEGORY_ID =
-    '1556132511694987294';
-
-// ====================
 // 권한 확인 함수
 // ====================
 
@@ -139,7 +58,8 @@ function canClean(member) {
         ADMIN_ROLE_IDS.representative,
         ADMIN_ROLE_IDS.admin,
         ADMIN_ROLE_IDS.adminAdditional,
-        ADMIN_ROLE_IDS.owner
+        ADMIN_ROLE_IDS.owner,
+        ADMIN_ROLE_IDS.superAdmin
     ]);
 }
 
@@ -148,13 +68,15 @@ function canWarning(member) {
         ADMIN_ROLE_IDS.security,
         ADMIN_ROLE_IDS.admin,
         ADMIN_ROLE_IDS.adminAdditional,
-        ADMIN_ROLE_IDS.owner
+        ADMIN_ROLE_IDS.owner,
+        ADMIN_ROLE_IDS.superAdmin
     ]);
 }
 
 function canPunish(member) {
     return hasRole(member, [
-        ADMIN_ROLE_IDS.owner
+        ADMIN_ROLE_IDS.owner,
+        ADMIN_ROLE_IDS.superAdmin
     ]);
 }
 
@@ -164,7 +86,8 @@ function canViewServerInfo(member) {
         ADMIN_ROLE_IDS.representative,
         ADMIN_ROLE_IDS.admin,
         ADMIN_ROLE_IDS.adminAdditional,
-        ADMIN_ROLE_IDS.owner
+        ADMIN_ROLE_IDS.owner,
+        ADMIN_ROLE_IDS.superAdmin
     ]);
 }
 
@@ -175,7 +98,8 @@ function canViewUserInfo(member) {
         ADMIN_ROLE_IDS.representative,
         ADMIN_ROLE_IDS.admin,
         ADMIN_ROLE_IDS.adminAdditional,
-        ADMIN_ROLE_IDS.owner
+        ADMIN_ROLE_IDS.owner,
+        ADMIN_ROLE_IDS.superAdmin
     ]);
 }
 
@@ -186,13 +110,15 @@ function canCloseTicket(member) {
         ADMIN_ROLE_IDS.representative,
         ADMIN_ROLE_IDS.admin,
         ADMIN_ROLE_IDS.adminAdditional,
-        ADMIN_ROLE_IDS.owner
+        ADMIN_ROLE_IDS.owner,
+        ADMIN_ROLE_IDS.superAdmin
     ]);
 }
 
 function canCreateTicketPanel(member) {
     return hasRole(member, [
-        ADMIN_ROLE_IDS.owner
+        ADMIN_ROLE_IDS.owner,
+        ADMIN_ROLE_IDS.superAdmin
     ]);
 }
 
@@ -629,13 +555,13 @@ client.on(
 
             const channel =
                 member.guild.channels.cache.get(
-                    JOIN_LOG_CHANNEL_ID
+                    CHANNEL_IDS.joinLog
                 );
 
             if (!channel) {
 
                 console.error(
-                    `[입장 로그 오류] 채널을 찾을 수 없습니다: ${JOIN_LOG_CHANNEL_ID}`
+                    `[입장 로그 오류] 채널을 찾을 수 없습니다: ${CHANNEL_IDS.joinLog}`
                 );
 
             } else {
@@ -774,13 +700,13 @@ client.on(
 
             const welcomeChannel =
                 member.guild.channels.cache.get(
-                    WELCOME_CHANNEL_ID
+                    CHANNEL_IDS.welcome
                 );
 
             if (!welcomeChannel) {
 
                 console.error(
-                    `[환영 메시지 오류] 환영 채널을 찾을 수 없습니다: ${WELCOME_CHANNEL_ID}`
+                    `[환영 메시지 오류] 환영 채널을 찾을 수 없습니다: ${CHANNEL_IDS.welcome}`
                 );
 
                 return;
@@ -799,16 +725,16 @@ client.on(
                 `╭・┈・┈・┈・✦・┈・┈・┈・╮\n\n` +
 
                 `### 📝 01. 자기소개\n\n` +
-                `<#1556143674809778248> 채널에서 간단하게 자기소개를 남겨주세요.\n\n` +
+                `<#${CHANNEL_IDS.introduction}> 채널에서 간단하게 자기소개를 남겨주세요.\n\n` +
 
                 `### 🪪 02. 경로 인증\n\n` +
-                `<#1556143703180181605> 채널에서 잔상을 알게 된 경로를 남겨주세요.\n\n` +
+                `<#${CHANNEL_IDS.discoveryRoute}> 채널에서 잔상을 알게 된 경로를 남겨주세요.\n\n` +
 
                 `### 👍 03. 추천 인증\n\n` +
-                `<#1556324050773610496> 채널에서 추천 인증을 진행해 주세요.\n\n` +
+                `<#${CHANNEL_IDS.recommendationVerification}> 채널에서 추천 인증을 진행해 주세요.\n\n` +
 
                 `### 🛡️ 04. 안내팀 호출\n\n` +
-                `<#1556143722968649798> 채널에서 안내팀을 멘션해 주시면\n` +
+                `<#${CHANNEL_IDS.guideTeam}> 채널에서 안내팀을 멘션해 주시면\n` +
                 `서버 이용에 필요한 안내를 도와드립니다.\n\n` +
 
                 `╰・┈・┈・┈・✦・┈・┈・┈・╯`;
@@ -850,7 +776,7 @@ client.on(
 
             const channel =
                 member.guild.channels.cache.get(
-                    LEAVE_LOG_CHANNEL_ID
+                    CHANNEL_IDS.leaveLog
                 );
 
             if (!channel) {
@@ -899,6 +825,49 @@ client.on(
 
             console.error(
                 '퇴장 로그 처리 중 오류:',
+                error
+            );
+        }
+    }
+);
+
+// ====================
+// 서버 부스트 알림
+// ====================
+
+client.on(
+    'guildMemberUpdate',
+    async (oldMember, newMember) => {
+        if (
+            oldMember.premiumSince ||
+            !newMember.premiumSince
+        ) return;
+
+        try {
+            const channel =
+                newMember.guild.channels.cache.get(
+                    CHANNEL_IDS.boostAnnouncement
+                );
+
+            if (!channel || !channel.isTextBased()) {
+                console.error(
+                    `[부스트 알림 오류] 텍스트 채널을 찾을 수 없습니다: ${CHANNEL_IDS.boostAnnouncement}`
+                );
+                return;
+            }
+
+            await channel.send({
+                content:
+                    `🎉 ${newMember} 님이 이 서버를 부스트했습니다! 부스트해주셔서 감사합니다!`,
+                allowedMentions: {
+                    users: [
+                        newMember.id
+                    ]
+                }
+            });
+        } catch (error) {
+            console.error(
+                '[부스트 알림 전송 오류]',
                 error
             );
         }
@@ -962,7 +931,7 @@ client.on(
 
             const adminMentionChannel =
                 message.guild.channels.cache.get(
-                    ADMIN_MENTION_CHANNEL_ID
+                    CHANNEL_IDS.adminMention
                 );
 
             if (!adminMentionChannel) {
@@ -1074,7 +1043,7 @@ client.on(
 
                 const cleanLogChannel =
                     message.guild.channels.cache.get(
-                        CLEAN_LOG_CHANNEL_ID
+                        CHANNEL_IDS.cleanLog
                     );
 
                 if (cleanLogChannel) {
@@ -1249,7 +1218,7 @@ client.on(
 
             await sendLog(
                 message.guild,
-                WARNING_ISSUE_LOG_CHANNEL_ID,
+                CHANNEL_IDS.warningIssueLog,
                 '경고 부여',
                 `👤 대상: ${member}\n` +
                 `🛡️ 관리자: ${message.author}\n` +
@@ -1434,7 +1403,7 @@ client.on(
 
             const warningDeductionLogChannel =
                 message.guild.channels.cache.get(
-                    WARNING_LOG_CHANNEL_ID
+                    CHANNEL_IDS.warningLog
                 );
 
             if (warningDeductionLogChannel) {
@@ -1537,7 +1506,7 @@ client.on(
 
             await sendLog(
                 message.guild,
-                KICK_LOG_CHANNEL_ID,
+                CHANNEL_IDS.kickLog,
                 '멤버 추방',
                 `👤 대상: **${targetTag}**\n` +
                 `🛡️ 관리자: ${message.author}\n` +
@@ -1682,7 +1651,7 @@ client.on(
 
             const permanentBanLogChannel =
                 message.guild.channels.cache.get(
-                    PERMANENT_BAN_LOG_CHANNEL_ID
+                    CHANNEL_IDS.permanentBanLog
                 );
 
             if (permanentBanLogChannel) {
@@ -1830,7 +1799,7 @@ client.on(
 
             const permanentUnbanLogChannel =
                 message.guild.channels.cache.get(
-                    PERMANENT_UNBAN_LOG_CHANNEL_ID
+                    CHANNEL_IDS.permanentUnbanLog
                 );
 
             if (permanentUnbanLogChannel) {
@@ -2381,7 +2350,7 @@ client.on(
 
             await sendLog(
                 message.guild,
-                TICKET_LOG_CHANNEL_ID,
+                CHANNEL_IDS.ticketLog,
                 '신고 채널 삭제',
                 `🛡️ 관리자: ${message.author}\n` +
                 `📌 채널: ${channel.name}`
@@ -2851,7 +2820,7 @@ client.on(
         }
 
         const categoryId =
-            TICKET_CATEGORY_ID;
+            CHANNEL_IDS.ticketCategory;
 
         const category =
             guild.channels.cache.get(
@@ -3008,6 +2977,17 @@ client.on(
                                 PermissionsBitField.Flags.SendMessages,
                                 PermissionsBitField.Flags.ReadMessageHistory
                             ]
+                        },
+
+                        {
+                            id:
+                                ADMIN_ROLE_IDS.superAdmin,
+
+                            allow: [
+                                PermissionsBitField.Flags.ViewChannel,
+                                PermissionsBitField.Flags.SendMessages,
+                                PermissionsBitField.Flags.ReadMessageHistory
+                            ]
                         }
                     ]
                 });
@@ -3040,7 +3020,7 @@ client.on(
 
             await sendLog(
                 guild,
-                TICKET_LOG_CHANNEL_ID,
+                CHANNEL_IDS.ticketLog,
                 '신고 채널 생성',
                 `👤 신고자: ${interaction.user}\n` +
                 `📌 채널: ${channel}`
