@@ -257,7 +257,8 @@ function saveReactionRolePanels() {
 async function sendReactionRolePanel(
     guild,
     channel,
-    roleEntries
+    roleEntries,
+    panelName = '🎭 역할 선택'
 ) {
     let panelMessage;
 
@@ -297,7 +298,7 @@ async function sendReactionRolePanel(
                 embeds: [
                     new EmbedBuilder()
                         .setTitle(
-                            '🎭 역할 선택'
+                            panelName
                         )
                         .setDescription(
                             '원하는 버튼을 눌러 역할을 받거나 회수하세요.\n\n' +
@@ -468,24 +469,63 @@ const rolePanelCommand =
             ko: '역할판'
         })
         .setDescription(
-            '역할 자동완성으로 버튼 역할판을 생성합니다.'
+            '버튼 이름과 역할을 선택해 역할판을 생성합니다.'
         );
 
-for (let index = 1; index <= 25; index += 1) {
+rolePanelCommand.addStringOption(
+    option =>
+        option
+            .setName('panel-name')
+            .setNameLocalizations({
+                ko: '역할판이름'
+            })
+            .setDescription(
+                '역할판 제목 (생략하면 기본 이름 사용)'
+            )
+            .setMinLength(1)
+            .setMaxLength(256)
+            .setRequired(false)
+);
+
+for (let index = 1; index <= 12; index += 1) {
     rolePanelCommand.addStringOption(
         option =>
             option
-                .setName(`role-${index}`)
+                .setName(`button-name-${index}`)
                 .setNameLocalizations({
-                    ko: `역할${index}`
+                    ko: `버튼이름${index}`
                 })
                 .setDescription(
-                    `${index}번째 역할판 버튼에 추가할 역할`
+                    `${index}번째 버튼에 표시할 이름`
                 )
-                .setAutocomplete(true)
+                .setMinLength(1)
+                .setMaxLength(80)
+                .setRequired(false)
+    );
+
+    rolePanelCommand.addRoleOption(
+        option =>
+            option
+                .setName(`receive-role-${index}`)
+                .setNameLocalizations({
+                    ko: `받을역할${index}`
+                })
+                .setDescription(
+                    `${index}번째 버튼으로 지급할 역할`
+                )
                 .setRequired(false)
     );
 }
+
+const boostMessageTestCommand =
+    new SlashCommandBuilder()
+        .setName('boost-message-test')
+        .setNameLocalizations({
+            ko: '부스트확인'
+        })
+        .setDescription(
+            '부스트 알림 메시지를 시험 전송합니다.'
+        );
 
 // ====================
 // 로그인 완료
@@ -503,24 +543,32 @@ client.once(
             const commands =
                 await client.application.commands.fetch();
 
-            const existingCommand =
-                commands.find(
-                    command =>
-                        command.name === 'role-panel'
-                );
+            for (const commandData of [
+                rolePanelCommand,
+                boostMessageTestCommand
+            ]) {
+                const commandJson =
+                    commandData.toJSON();
 
-            if (existingCommand) {
-                await existingCommand.edit(
-                    rolePanelCommand.toJSON()
-                );
-            } else {
-                await client.application.commands.create(
-                    rolePanelCommand.toJSON()
-                );
+                const existingCommand =
+                    commands.find(
+                        command =>
+                            command.name === commandJson.name
+                    );
+
+                if (existingCommand) {
+                    await existingCommand.edit(
+                        commandJson
+                    );
+                } else {
+                    await client.application.commands.create(
+                        commandJson
+                    );
+                }
             }
         } catch (error) {
             console.error(
-                '역할판 슬래시 명령어 등록 중 오류:',
+                '슬래시 명령어 등록 중 오류:',
                 error
             );
         }
@@ -835,6 +883,29 @@ client.on(
 // 서버 부스트 알림
 // ====================
 
+async function sendBoostAnnouncement(guild, userId) {
+    const channel =
+        await guild.channels.fetch(
+            CHANNEL_IDS.boostAnnouncement
+        );
+
+    if (!channel || !channel.isTextBased()) {
+        throw new Error(
+            `부스트 알림 텍스트 채널을 찾을 수 없습니다: ${CHANNEL_IDS.boostAnnouncement}`
+        );
+    }
+
+    await channel.send({
+        content:
+            `🎉 <@${userId}> 님이 이 서버를 부스트했습니다! 부스트해주셔서 감사합니다!`,
+        allowedMentions: {
+            users: [
+                userId
+            ]
+        }
+    });
+}
+
 client.on(
     'guildMemberUpdate',
     async (oldMember, newMember) => {
@@ -844,27 +915,10 @@ client.on(
         ) return;
 
         try {
-            const channel =
-                newMember.guild.channels.cache.get(
-                    CHANNEL_IDS.boostAnnouncement
-                );
-
-            if (!channel || !channel.isTextBased()) {
-                console.error(
-                    `[부스트 알림 오류] 텍스트 채널을 찾을 수 없습니다: ${CHANNEL_IDS.boostAnnouncement}`
-                );
-                return;
-            }
-
-            await channel.send({
-                content:
-                    `🎉 ${newMember} 님이 이 서버를 부스트했습니다! 부스트해주셔서 감사합니다!`,
-                allowedMentions: {
-                    users: [
-                        newMember.id
-                    ]
-                }
-            });
+            await sendBoostAnnouncement(
+                newMember.guild,
+                newMember.id
+            );
         } catch (error) {
             console.error(
                 '[부스트 알림 전송 오류]',
@@ -905,7 +959,7 @@ client.on(
                 '👤 `.유저정보 @멤버` — 멤버 정보 확인\n' +
                 '🎮 `.게임역할` — 게임 역할 선택판 생성\n' +
                 '🎭 `.역할판 "버튼 문구" @역할 "버튼 문구2" @역할2` — 버튼 역할판 생성 (소유주 전용)\n' +
-                '🎭 `/역할판` — 역할 자동완성으로 버튼 역할판 생성 (소유주 전용)\n' +
+                '🎭 `/역할판` — 버튼 이름과 받을 역할을 지정해 역할판 생성 (선택: 역할판 이름, 최대 12개)\n' +
                 '🎫 `.티켓` — 티켓 안내판 생성 (소유주 전용)\n' +
                 '🔒 `.티켓닫기` — 신고 채널 닫기\n' +   
                 '📢 `.관리자멘션` — 관리자 전체 멘션 (소유주 전용)'
@@ -2378,68 +2432,44 @@ client.on(
     'interactionCreate',
     async interaction => {
 
-        if (interaction.isAutocomplete()) {
+        if (interaction.isChatInputCommand()) {
             if (
-                interaction.commandName !== 'role-panel' &&
-                interaction.commandName !== '역할판'
-            ) return;
-
-            try {
-                const guild =
-                    interaction.guild;
-
-                if (!guild) {
-                    return interaction.respond([]);
+                interaction.commandName === 'boost-message-test' ||
+                interaction.commandName === '부스트확인'
+            ) {
+                if (!interaction.guild) {
+                    return interaction.reply({
+                        content:
+                            '❌ 서버에서만 사용할 수 있는 명령어입니다.',
+                        flags: MessageFlags.Ephemeral
+                    });
                 }
 
-                const focused =
-                    interaction.options.getFocused(true);
+                await interaction.deferReply({
+                    flags: MessageFlags.Ephemeral
+                });
 
-                const search =
-                    String(focused.value)
-                        .toLocaleLowerCase('ko');
+                try {
+                    await sendBoostAnnouncement(
+                        interaction.guild,
+                        interaction.user.id
+                    );
 
-                const matchingRoles =
-                    guild.roles.cache
-                        .filter(
-                            role =>
-                                role.id !== guild.id &&
-                                role.editable &&
-                                !role.managed &&
-                                `${role.name} ${role.id}`
-                                    .toLocaleLowerCase('ko')
-                                    .includes(search)
-                        )
-                        .sort(
-                            (first, second) =>
-                                first.name.localeCompare(
-                                    second.name,
-                                    'ko'
-                                )
-                        )
-                        .first(25);
+                    return interaction.editReply(
+                        '✅ 부스트 알림 메시지를 전송했습니다.'
+                    );
+                } catch (error) {
+                    console.error(
+                        '부스트 알림 테스트 전송 중 오류:',
+                        error
+                    );
 
-                return interaction.respond(
-                    matchingRoles.map(
-                        role => ({
-                            name:
-                                `${[...role.name].slice(0, 75).join('')} (${role.id})`,
-                            value:
-                                role.id
-                        })
-                    )
-                );
-            } catch (error) {
-                console.error(
-                    '역할판 역할 자동완성 중 오류:',
-                    error
-                );
-
-                return interaction.respond([]);
+                    return interaction.editReply(
+                        '❌ 부스트 알림 메시지를 전송하지 못했습니다. 채널 설정과 봇 권한을 확인해주세요.'
+                    );
+                }
             }
-        }
 
-        if (interaction.isChatInputCommand()) {
             if (
                 interaction.commandName !== 'role-panel' &&
                 interaction.commandName !== '역할판'
@@ -2470,21 +2500,59 @@ client.on(
 
             const roleEntries = [];
             const usedRoleIds = new Set();
+            const panelNameOption =
+                interaction.options.data.find(
+                    option =>
+                        option.name === 'panel-name' ||
+                        option.name === '역할판이름'
+                );
+            const panelName =
+                typeof panelNameOption?.value === 'string'
+                    ? panelNameOption.value.trim()
+                    : '';
 
-            for (let index = 1; index <= 25; index += 1) {
+            if (panelName.length > 256) {
+                return interaction.editReply(
+                    '❌ 역할판 이름은 256자 이내로 입력해주세요.'
+                );
+            }
+
+            for (let index = 1; index <= 12; index += 1) {
+                const buttonNameOption =
+                    interaction.options.data.find(
+                        option =>
+                            option.name === `button-name-${index}` ||
+                            option.name === `버튼이름${index}`
+                    );
                 const roleOption =
                     interaction.options.data.find(
                         option =>
-                            option.name === `role-${index}` ||
-                            option.name === `역할${index}`
+                            option.name === `receive-role-${index}` ||
+                            option.name === `받을역할${index}`
                     );
-
+                const label =
+                    typeof buttonNameOption?.value === 'string'
+                        ? buttonNameOption.value.trim()
+                        : '';
                 const roleId =
-                    typeof roleOption?.value === 'string'
+                    roleOption?.role?.id ??
+                    (typeof roleOption?.value === 'string'
                         ? roleOption.value
-                        : null;
+                        : null);
 
-                if (!roleId) continue;
+                if (!label && !roleId) continue;
+
+                if (!label || !roleId) {
+                    return interaction.editReply(
+                        `❌ ${index}번째 버튼 이름과 받을 역할을 모두 입력해주세요.`
+                    );
+                }
+
+                if (label.length > 80) {
+                    return interaction.editReply(
+                        `❌ ${index}번째 버튼 이름은 80자 이내로 입력해주세요.`
+                    );
+                }
 
                 if (usedRoleIds.has(roleId)) {
                     return interaction.editReply(
@@ -2510,15 +2578,14 @@ client.on(
 
                 usedRoleIds.add(roleId);
                 roleEntries.push({
-                    label:
-                        [...role.name].slice(0, 80).join(''),
+                    label,
                     role
                 });
             }
 
             if (roleEntries.length === 0) {
                 return interaction.editReply(
-                    '🎭 자동완성으로 역할을 하나 이상 선택해주세요. 최대 25개까지 추가할 수 있습니다.'
+                    '🎭 버튼 이름과 받을 역할을 한 쌍 이상 지정해주세요. 최대 12개까지 추가할 수 있습니다.'
                 );
             }
 
@@ -2541,7 +2608,8 @@ client.on(
                     await sendReactionRolePanel(
                         guild,
                         interaction.channel,
-                        roleEntries
+                        roleEntries,
+                        panelName || undefined
                     );
 
                 return interaction.editReply(
